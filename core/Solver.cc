@@ -23,9 +23,10 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "mtl/Sort.h"
 #include "core/Solver.h"
 
+//#define BAC_ONLY_MERGE_ON_DLVL
 #define BAC_BUMP        0
-#define BAC_DOUBLEBUMP  0
-#define BAC_BUMPLIT2    0
+#define BAC_DOUBLEBUMP  1
+#define BAC_BUMPLIT2    1
 
 using namespace Minisat;
 
@@ -265,12 +266,15 @@ Lit Solver::pickBranchLit()
 |        rest of literals. There may be others from the same level though.
 |  
 |________________________________________________________________________________________________@*/
-void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel, bool &out_isbac)
+void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel, bool &out_isbac, Lit& bac_emp_lit)
 {
     int pathC = 0;
     Lit p     = lit_Undef;
 
     bool out_isempowering = false;  // Flag for finding 1-emp clauses.   BM
+#ifdef BAC_ONLY_MERGE_ON_DLVL
+    bool p_isempowering = false;
+#endif
     int bac_btlevel = -1; 
     bool bac_nopathinc = false;
     Lit bac_lit1 = lit_Undef, bac_lit2 = lit_Undef;
@@ -295,7 +299,11 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel, bool &o
 
             if (!seen[var(q)] && level(var(q)) > 0){
                 varBumpActivity(var(q));
+#ifdef BAC_ONLY_MERGE_ON_DLVL
+                seen[var(q)] = p_isempowering ? 2 : 1;
+#else
                 seen[var(q)] = 1;
+#endif
                 if (level(var(q)) >= decisionLevel()){
                     pathC++;
                     if (bac_nopathinc) bac_nopathinc=false;
@@ -305,9 +313,16 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel, bool &o
                     out_learnt.push(q);
                 }
             }
-            else if (seen[var(q)]) { // Check for merge resolution. -BM
+#ifdef BAC_ONLY_MERGE_ON_DLVL
+            else if (seen[var(q)] && level[var(q)] >= decisionLevel()) { // Check for a merge on the highest level.   -BM
+                seen[var(q)] = 2;
                 out_isempowering = true;
             }
+#else
+            else if (seen[var(q)]) { // Check for a merge on the highest level.   -BM
+                out_isempowering = true;
+            }
+#endif
         }
         
         // Select next clause to look at:
@@ -688,6 +703,7 @@ lbool Solver::search(int nof_conflicts)
     starts++;
 
     bool learnt_isbac = false; // -BM
+    Lit bac_emp_lit;
 
     for (;;){
         CRef confl = propagate();
@@ -697,7 +713,7 @@ lbool Solver::search(int nof_conflicts)
             if (decisionLevel() == 0) return l_False;
 
             learnt_clause.clear();
-            analyze(confl, learnt_clause, backtrack_level, learnt_isbac);
+            analyze(confl, learnt_clause, backtrack_level, learnt_isbac, bac_emp_lit);
             cancelUntil(backtrack_level);
 
             if (learnt_clause.size() == 1){
