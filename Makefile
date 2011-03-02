@@ -29,9 +29,9 @@ d-core:
 	cp core/ebminisat_debug .
 
 clean:
-	rm -f core/*.o core/*.or core/*.od
-	rm -f simp/*.o simp/*.or simp/*.od
-	rm -f utils/*.o utils/*.or utils/*.od
+	rm -f core/*.o core/*.or core/*.od core/depend.mk
+	rm -f simp/*.o simp/*.or simp/*.od simp/depend.mk
+	rm -f utils/*.o utils/*.or utils/*.od  utils/depend.mk
 spotless: clean
 	rm -f core/ebminisat*
 	rm -f simp/ebminisat*
